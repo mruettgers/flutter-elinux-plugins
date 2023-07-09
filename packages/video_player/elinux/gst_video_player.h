@@ -63,6 +63,7 @@ class GstVideoPlayer {
                                           gpointer user_data);
   std::string ParseUri(const std::string& uri);
   bool CreatePipeline();
+  bool CreateCustomPipeline();
   void DestroyPipeline();
   void Preroll();
   void GetVideoSize(int32_t& width, int32_t& height);

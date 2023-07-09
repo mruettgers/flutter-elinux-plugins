@@ -17,11 +17,19 @@ GstVideoPlayer::GstVideoPlayer(
   gst_.bus = nullptr;
   gst_.buffer = nullptr;
 
-  uri_ = ParseUri(uri);
-  if (!CreatePipeline()) {
-    std::cerr << "Failed to create a pipeline" << std::endl;
-    DestroyPipeline();
-    return;
+  if (uri.substr(0, 10) == "pipeline://") {
+    if (!CreateCustomPipeline(uri.substr(10))) {
+      std::cerr << "Failed to create a custom pipeline" << std::endl;
+      DestroyPipeline();
+      return;
+    }
+  } else {
+    uri_ = ParseUri(uri);
+    if (!CreatePipeline()) {
+      std::cerr << "Failed to create a pipeline" << std::endl;
+      DestroyPipeline();
+      return;
+    }
   }
 
   // Prerolls before getting information from the pipeline.
@@ -218,6 +226,36 @@ const uint8_t* GstVideoPlayer::GetFrameBuffer() {
   const uint32_t pixel_bytes = width_ * height_ * 4;
   gst_buffer_extract(gst_.buffer, 0, pixels_.get(), pixel_bytes);
   return reinterpret_cast<const uint8_t*>(pixels_.get());
+}
+
+bool GstVideoPlayer::CreateCustomPipeline(const std::string& pipeline_definition) {
+    GError* error = NULL;
+
+    // Parse pipeline definition
+    gst_.pipeline = gst_parse_launch(pipeline_definition.c_str(), &error);
+
+    if (error != NULL) {
+        std::cerr << "Failed to parse pipeline definition: " << error->message << std::endl;
+        g_error_free(error);
+        return false;
+    }
+
+    if (!gst_.pipeline) {
+        std::cerr << "Failed to create a pipeline" << std::endl;
+        return false;
+    }
+
+    // Get bus from pipeline
+    gst_.bus = gst_pipeline_get_bus(GST_PIPELINE(gst_.pipeline));
+    if (!gst_.bus) {
+        std::cerr << "Failed to get a bus from pipeline" << std::endl;
+        return false;
+    }
+
+    // Add bus sync handler
+    gst_bus_set_sync_handler(gst_.bus, HandleGstMessage, this, NULL);
+
+    return true;
 }
 
 // Creats a video pipeline using playbin.
